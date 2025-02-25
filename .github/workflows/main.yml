@@ -22,9 +22,9 @@ jobs:
       - name: Build and Push Docker Image (v2)
         run: |
           docker build -t ${{ secrets.DOCKER_HUB_USERNAME }}/hello-world:v2 .
-          docker tag ${{ secrets.DOCKER_HUB_USERNAME }}/hello-world:latest
+          docker tag ${{ secrets.DOCKER_HUB_USERNAME }}/hello-world:v2
           docker push ${{ secrets.DOCKER_HUB_USERNAME }}/hello-world:v2
-          docker push ${{ secrets.DOCKER_HUB_USERNAME }}/hello-world:latest
+          docker push ${{ secrets.DOCKER_HUB_USERNAME }}/hello-world:v2
 
       - name: Deploy to Docker Swarm (Rolling Update)
         uses: appleboy/ssh-action@v0.1.10
@@ -34,11 +34,11 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             echo "Pulling the latest Docker image..."
-            docker pull ${{ secrets.DOCKER_HUB_USERNAME }}/hello-world:latest
+            docker pull ${{ secrets.DOCKER_HUB_USERNAME }}/hello-world:v2
 
             echo "Updating Docker Swarm service..."
             docker service update \
-              --image ${{ secrets.DOCKER_HUB_USERNAME }}/hello-world:latest \
+              --image ${{ secrets.DOCKER_HUB_USERNAME }}/hello-world:v2 \
               --publish-add 4002:80 \
               --update-parallelism 1 \
               --update-delay 10s \
