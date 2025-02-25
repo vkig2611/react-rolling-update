@@ -1,9 +1,9 @@
-name: Rolling Update Frontend App
+name: Deploy to Docker Swarm
 
 on:
   push:
     branches:
-      - main  # Trigger deployment when pushing to the main branch
+      - main  # Runs the pipeline when code is pushed to main branch
 
 jobs:
   deploy:
@@ -16,33 +16,31 @@ jobs:
       - name: Log in to Docker Hub
         run: echo "${{ secrets.DOCKER_HUB_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_HUB_USERNAME }}" --password-stdin
 
-      - name: SSH into Server and Deploy
+      - name: Build and Push Docker Image
+        run: |
+          IMAGE_TAG=vk2615/hello-world:v2
+          docker build -t $IMAGE_TAG .
+          docker push $IMAGE_TAG
+      - name: SSH into Server and Deploy v2
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            IMAGE_NAME="${{ secrets.DOCKER_HUB_USERNAME }}/roll-update:v2"
-
-            echo "Pulling latest v2 image..."
-            docker pull $IMAGE_NAME
-
-            # Check if service exists
-            if ! docker service ls | grep -q roll-update; then
-              echo "Service 'roll-update' not found. Creating service..."
-              docker service create \
-                --name roll-update \
-                --replicas 2 \
-                --publish 3003:80 \
-                --update-parallelism 1 \
-                --update-delay 10s \
-                $IMAGE_NAME
-            else
-              echo "Service 'roll-update' found. Performing rolling update..."
-              docker service update \
-                --image $IMAGE_NAME \
-                --update-parallelism 1 \
-                --update-delay 10s \
-                roll-update
+            docker pull vk2615/hello-world:v2
+            docker service update --image vk2615/hello-world:v2 hello-world-app
+      - name: Check Deployment Status
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            sleep 30  # Wait for service to stabilize
+            STATUS=$(docker service ps hello-world-app --format "{{.CurrentState}}" | grep Running | wc -l)
+            if [ "$STATUS" -eq "0" ]; then
+              echo "Deployment failed! Rolling back to v1..."
+              docker service update --image vk2615/hello-world:v1 hello-world-app
+              exit 1
             fi
