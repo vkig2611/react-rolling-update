@@ -33,4 +33,4 @@ jobs:
               --image ${{ secrets.DOCKERHUB_USERNAME }}/roll-update-app:v2 \
               --update-parallelism 1 \
               --update-delay 10s \
-              roll-update
+              vk2615_roll-update
