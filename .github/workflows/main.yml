@@ -18,8 +18,8 @@ jobs:
 
       - name: Build and Push Docker Image (v2)
         run: |
-          docker build -t ${{ secrets.DOCKER_HUB_USERNAME }}/frontend-app:v2 .
-          docker push ${{ secrets.DOCKER_HUB_USERNAME }}/frontend-app:v2
+          docker build -t ${{ secrets.DOCKER_HUB_USERNAME }}/roll-update-app:v2 .
+          docker push ${{ secrets.DOCKER_HUB_USERNAME }}/roll-update-app:v2
 
       - name: SSH into Server and Perform Rolling Update
         uses: appleboy/ssh-action@master
@@ -28,9 +28,9 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/frontend-app:v2
+            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/roll-update-app:v2
             docker service update \
-              --image ${{ secrets.DOCKERHUB_USERNAME }}/frontend-app:v2 \
+              --image ${{ secrets.DOCKERHUB_USERNAME }}/roll-update-app:v2 \
               --update-parallelism 1 \
               --update-delay 10s \
               frontend_frontend
