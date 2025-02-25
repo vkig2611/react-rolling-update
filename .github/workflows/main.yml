@@ -1,46 +1,36 @@
-name: Deploy React App (Rolling Update)
+name: Deploy Frontend with Rolling Update
 
 on:
   push:
     branches:
-      - main  # Runs when code is pushed to main
+      - main  # Trigger deployment when pushing to the main branch
 
 jobs:
-  build-and-deploy:
+  deploy:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
 
-      - name: Login to Docker Hub
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKER_HUB_USERNAME }}
-          password: ${{ secrets.DOCKER_HUB_PASSWORD }}
+      - name: Log in to Docker Hub
+        run: echo "${{ secrets.DOCKER_HUB_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_HUB_USERNAME }}" --password-stdin
 
       - name: Build and Push Docker Image (v2)
         run: |
-          docker build -t ${{ secrets.DOCKER_HUB_USERNAME }}/hello-world:v2 .
-          docker push ${{ secrets.DOCKER_HUB_USERNAME }}/hello-world:v2
+          docker build -t ${{ secrets.DOCKER_HUB_USERNAME }}/frontend-app:v2 .
+          docker push ${{ secrets.DOCKER_HUB_USERNAME }}/frontend-app:v2
 
-      - name: Deploy to Docker Swarm (Rolling Update)
-        uses: appleboy/ssh-action@v0.1.10
+      - name: SSH into Server and Perform Rolling Update
+        uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            echo "Pulling the latest v2 Docker image..."
-            docker pull ${{ secrets.DOCKER_HUB_USERNAME }}/hello-world:v2
-
-            echo "Performing a rolling update from v1 to v2..."
+            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/frontend-app:v2
             docker service update \
-              --image ${{ secrets.DOCKER_HUB_USERNAME }}/hello-world:v2 \
+              --image ${{ secrets.DOCKERHUB_USERNAME }}/frontend-app:v2 \
               --update-parallelism 1 \
               --update-delay 10s \
-              --rollback-on-failure \
-              --update-failure-action rollback \
-              react-app
-
-            echo "Rolling update from v1 to v2 completed!"
+              frontend_frontend
