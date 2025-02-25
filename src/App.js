@@ -1,7 +1,7 @@
 function App() {
   return (
     <div>
-      <h1>Hello World - Version 1</h1>
+      <h1>Hello World - Version 2(updated)</h1>
     </div>
   );
 }
