@@ -22,8 +22,6 @@ jobs:
       - name: Build and Push Docker Image (v2)
         run: |
           docker build -t ${{ secrets.DOCKER_HUB_USERNAME }}/hello-world:v2 .
-          docker tag ${{ secrets.DOCKER_HUB_USERNAME }}/hello-world:v2
-          docker push ${{ secrets.DOCKER_HUB_USERNAME }}/hello-world:v2
           docker push ${{ secrets.DOCKER_HUB_USERNAME }}/hello-world:v2
 
       - name: Deploy to Docker Swarm (Rolling Update)
@@ -33,17 +31,16 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            echo "Pulling the latest Docker image..."
+            echo "Pulling the latest v2 Docker image..."
             docker pull ${{ secrets.DOCKER_HUB_USERNAME }}/hello-world:v2
 
-            echo "Updating Docker Swarm service..."
+            echo "Performing a rolling update from v1 to v2..."
             docker service update \
               --image ${{ secrets.DOCKER_HUB_USERNAME }}/hello-world:v2 \
-              --publish-add 4002:80 \
               --update-parallelism 1 \
               --update-delay 10s \
               --rollback-on-failure \
               --update-failure-action rollback \
               react-app
 
-            echo "Rolling update completed!"
+            echo "Rolling update from v1 to v2 completed!"
