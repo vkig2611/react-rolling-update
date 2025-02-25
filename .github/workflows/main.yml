@@ -3,7 +3,7 @@ name: Deploy React App (Rolling Update)
 on:
   push:
     branches:
-      - main  # Triggers on push to main branch
+      - main  # Runs when code is pushed to main
 
 jobs:
   build-and-deploy:
@@ -22,7 +22,7 @@ jobs:
       - name: Build and Push Docker Image (v2)
         run: |
           docker build -t ${{ secrets.DOCKER_HUB_USERNAME }}/hello-world:v2 .
-          docker tag ${{ secrets.DOCKER_HUB_USERNAME }}/hello-world:v2 ${{ secrets.DOCKER_HUB_USERNAME }}/hello-world:latest
+          docker tag ${{ secrets.DOCKER_HUB_USERNAME }}/hello-world:latest
           docker push ${{ secrets.DOCKER_HUB_USERNAME }}/hello-world:v2
           docker push ${{ secrets.DOCKER_HUB_USERNAME }}/hello-world:latest
 
@@ -36,9 +36,10 @@ jobs:
             echo "Pulling the latest Docker image..."
             docker pull ${{ secrets.DOCKER_HUB_USERNAME }}/hello-world:latest
 
-            echo "Performing a rolling update in Docker Swarm..."
+            echo "Updating Docker Swarm service..."
             docker service update \
               --image ${{ secrets.DOCKER_HUB_USERNAME }}/hello-world:latest \
+              --publish-add 4002:80 \
               --update-parallelism 1 \
               --update-delay 10s \
               --rollback-on-failure \
