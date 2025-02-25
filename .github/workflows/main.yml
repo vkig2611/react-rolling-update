@@ -1,4 +1,4 @@
-name: Deploy Frontend with Rolling Update
+name: Rolling Update Frontend App
 
 on:
   push:
@@ -16,21 +16,21 @@ jobs:
       - name: Log in to Docker Hub
         run: echo "${{ secrets.DOCKER_HUB_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_HUB_USERNAME }}" --password-stdin
 
-      - name: Build and Push Docker Image (v2)
-        run: |
-          docker build -t ${{ secrets.DOCKER_HUB_USERNAME }}/roll-update-app:v2 .
-          docker push ${{ secrets.DOCKER_HUB_USERNAME }}/roll-update-app:v2
-
-      - name: SSH into Server and Perform Rolling Update
+      - name: SSH into Server and Update Service
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/roll-update-app:v2
+            IMAGE_NAME="${{ secrets.DOCKER_HUB_USERNAME }}/roll-update:v2"
+
+            echo "Pulling latest v2 image..."
+            docker pull $IMAGE_NAME
+
+            echo "Performing rolling update..."
             docker service update \
-              --image ${{ secrets.DOCKERHUB_USERNAME }}/roll-update-app:v2 \
+              --image $IMAGE_NAME \
               --update-parallelism 1 \
               --update-delay 10s \
-              vk2615_roll-update
+              roll-update
