@@ -1,46 +1,81 @@
-name: Deploy to Docker Swarm
+name: Deploy React App with Rollback on Failure
 
 on:
   push:
     branches:
-      - main  # Runs the pipeline when code is pushed to main branch
+      - main
 
 jobs:
-  deploy:
+  build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
+      # Checkout the repository
       - name: Checkout Code
         uses: actions/checkout@v3
 
-      - name: Log in to Docker Hub
+      # Log in to Docker Hub
+      - name: Login to Docker Hub
         run: echo "${{ secrets.DOCKER_HUB_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_HUB_USERNAME }}" --password-stdin
 
-      - name: Build and Push Docker Image
+      # Build & push the v2 image
+      - name: Build and Push v2 Docker Image
         run: |
-          IMAGE_TAG=vk2615/hello-world:v2
-          docker build -t $IMAGE_TAG .
-          docker push $IMAGE_TAG
-      - name: SSH into Server and Deploy v2
+          docker build -t vk2615/hello-world-1:v2 .
+          docker push vk2615/hello-world-1:v2
+
+      # SSH into the server and deploy v2
+      - name: Deploy v2 to Swarm
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            docker pull vk2615/hello-world:v2
-            docker service update --image vk2615/hello-world:v2 hello-world-app
-      - name: Check Deployment Status
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
-            sleep 30  # Wait for service to stabilize
-            STATUS=$(docker service ps hello-world-app --format "{{.CurrentState}}" | grep Running | wc -l)
-            if [ "$STATUS" -eq "0" ]; then
-              echo "Deployment failed! Rolling back to v1..."
-              docker service update --image vk2615/hello-world:v1 hello-world-app
-              exit 1
+            echo "Checking if hello-world-app service exists..."
+            SERVICE_EXISTS=$(docker service ls --format "{{.Name}}" | grep -w "hello-world-app" | wc -l)
+
+            if [ "$SERVICE_EXISTS" -eq "0" ]; then
+              echo "Service does not exist! Creating service with v1..."
+              docker service create --name hello-world-app --publish 4000:80 vk2615/hello-world-1:v1
+              sleep 10
             fi
+
+            echo "Pulling latest v2 image..."
+            docker pull vk2615/hello-world-1:v2 || { echo "Failed to pull v2 image"; exit 1; }
+
+            echo "Deploying v2..."
+            docker service update --force --image vk2615/hello-world-1:v2 hello-world-app || { 
+              echo "Deployment failed! Rolling back to v1..."
+              docker service update --force --image vk2615/hello-world-1:v1 hello-world-app
+              exit 1
+            }
+
+            echo "Waiting for v2 to start..."
+            sleep 15  # Wait for v2 to stabilize
+
+            echo "Checking if v2 is working..."
+            HEALTH_CHECK=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:4000)
+
+            if [ "$HEALTH_CHECK" -ne "200" ]; then
+              echo "❌ v2 is not working! Rolling back to v1..."
+              docker service update --force --image vk2615/hello-world-1:v1 hello-world-app
+              exit 1
+            else
+              echo "✅ v2 is running fine."
+            fi
+
+      # Send Slack Notification
+      - name: Send Slack Notification on Success
+        if: success()
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_MESSAGE: "✅ Deployment of v2 was successful! 🚀"
+
+      - name: Send Slack Notification on Failure
+        if: failure()
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_MESSAGE: "⚠️ Deployment of v2 failed! Rolling back to v1! 🔄"
