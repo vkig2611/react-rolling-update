@@ -16,10 +16,10 @@ jobs:
       - name: Log in to Docker Hub
         run: echo "${{ secrets.DOCKER_HUB_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_HUB_USERNAME }}" --password-stdin
 
-      - name: SSH into Server and Update Service
+      - name: SSH into Server and Deploy
         uses: appleboy/ssh-action@master
         with:
-          host: ${{ secrets.SSH_HOST }}
+          host: ${{ secrets.SSH_IP }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
@@ -28,9 +28,21 @@ jobs:
             echo "Pulling latest v2 image..."
             docker pull $IMAGE_NAME
 
-            echo "Performing rolling update..."
-            docker service update \
-              --image $IMAGE_NAME \
-              --update-parallelism 1 \
-              --update-delay 10s \
-              roll-update
+            # Check if service exists
+            if ! docker service ls | grep -q roll-update; then
+              echo "Service 'roll-update' not found. Creating service..."
+              docker service create \
+                --name roll-update \
+                --replicas 2 \
+                --publish 3003:80 \
+                --update-parallelism 1 \
+                --update-delay 10s \
+                $IMAGE_NAME
+            else
+              echo "Service 'roll-update' found. Performing rolling update..."
+              docker service update \
+                --image $IMAGE_NAME \
+                --update-parallelism 1 \
+                --update-delay 10s \
+                roll-update
+            fi
